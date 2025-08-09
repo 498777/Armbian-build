@@ -1,0 +1,35 @@
+# Config Interface
+[[ifaces]]
+name = "eth0"
+zone_type = "wan"
+
+[[ifaces]]
+name = "br_lan"
+create_dev_type = "bridge"
+zone_type = "lan"
+
+[[ifaces]]
+name = "eth1"
+controller_name = "br_lan"
+
+[[ipconfigs]]
+iface_name = "eth0"
+enable = true
+
+[ipconfigs.ip_model]
+t = "dhcpclient"
+
+[[dhcpv4_services]]
+iface_name = "br_lan"
+enable = true
+
+[dhcpv4_services.config]
+server_ip_addr = "192.168.123.1"
+ip_range_start = "192.168.123.100"
+network_mask = 24
+
+# LAN 绑定的 MAC 地址
+mac_binding_records = [
+    { mac = "00:11:22:33:44:55", ip = "192.168.7.50" },
+    { mac = "aa:bb:cc:dd:ee:ff", ip = "192.168.7.51" },
+]
