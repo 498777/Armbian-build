@@ -9,7 +9,7 @@ on:
 
 env:
   TARGET_ARCH: arm64
-  LANDSCAPE_REPO: https://github.com/your-org/landscape.git
+  LANDSCAPE_REPO: https://github.com/ThisSeanZhang/landscape.git
   ARMBIAN_BUILD_REPO: https://github.com/armbian/build.git
   BUILD_OUTPUT_DIR: output
 
