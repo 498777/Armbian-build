@@ -1,101 +1,65 @@
-name: Build and Release Landscape for Armbian
+name: Build and Release Landscape Router (arm64)
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-env:
-  TARGET_ARCH: arm64
-  LANDSCAPE_REPO: https://github.com/ThisSeanZhang/landscape.git
-  ARMBIAN_BUILD_REPO: https://github.com/armbian/build.git
-  BUILD_OUTPUT_DIR: output
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-  prepare:
-    name: Prepare Build Environment
+  build-landscape-router:
     runs-on: ubuntu-latest
-    outputs:
-      commit_hash: ${{ steps.get_commit.outputs.commit }}
+
     steps:
-      - name: Checkout Landscape
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.LANDSCAPE_REPO }}
+    - name: Checkout Repository
+      uses: actions/checkout@v3
 
-      - name: Get Commit Hash
-        id: get_commit
-        run: echo "commit=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+    - name: Install Build Dependencies
+      run: |
+        sudo apt update -y
+        sudo apt install -y build-essential bc u-boot-tools curl zip unzip git
 
-  build:
-    name: Cross-Compile Landscape for Armbian
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Armbian Build Framework
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.ARMBIAN_BUILD_REPO }}
+    - name: Clone Armbian Build Tools
+      run: git clone https://github.com/ThisSeanZhang/landscape-build $HOME/landscape-build
 
-      - name: Install Dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y gcc-aarch64-linux-gnu make git
+    - name: Configure Environment
+      run: |
+        export BOARD=arm64
+        export BRANCH=current
+        export BUILD_DESKTOP=no
+        export BUILD_MINIMAL=yes
+        export KERNEL_CONFIGURE=yes
+        export RELEASE=bookworm
+        export KERNEL_GIT=shallow
+        export NETWORKING_STACK="none"
 
-      - name: Clone Landscape
-        run: |
-          git clone ${{ env.LANDSCAPE_REPO }} landscape
-          cd landscape
-          git checkout ${{ needs.prepare.outputs.commit_hash }}
+    - name: Copy Configuration Files
+      run: |
+        cp userpatches/overlay/landscape_init.toml $HOME/landscape-build/userpatches/overlay/
+        cp userpatches/customize-image.sh $HOME/landscape-build/userpatches/
 
-      - name: Cross-Compile
-        run: |
-          cd landscape
-          mkdir -p ${{ env.BUILD_OUTPUT_DIR }}
-          make ARCH=${{ env.TARGET_ARCH }} CROSS_COMPILE=aarch64-linux-gnu- \
-            OUTPUT=${{ env.BUILD_OUTPUT_DIR }}
+    - name: Execute Compile Script
+      run: |
+        cd $HOME/landscape-build
+        bash ./compile.sh \
+          BOARD=$BOARD \
+          BRANCH=$BRANCH \
+          BUILD_DESKTOP=$BUILD_DESKTOP \
+          BUILD_MINIMAL=$BUILD_MINIMAL \
+          KERNEL_CONFIGURE=$KERNEL_CONFIGURE \
+          RELEASE=$RELEASE \
+          KERNEL_GIT=$KERNEL_GIT \
+          NETWORKING_STACK=$NETWORKING_STACK
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: landscape-armbian-${{ env.TARGET_ARCH }}
-          path: landscape/${{ env.BUILD_OUTPUT_DIR }}
+    - name: Package Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: landscape-router-build
+        path: $HOME/landscape-build/output/
 
-  release:
-    name: Create GitHub Release
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: landscape-armbian-${{ env.TARGET_ARCH }}
-          path: release-assets
-
-      - name: Generate Release Notes
-        id: changelog
-        run: |
-          echo "## Landscape Armbian Build" > release.md
-          echo "Built from commit: ${{ needs.prepare.outputs.commit_hash }}" >> release.md
-          echo "Target architecture: ${{ env.TARGET_ARCH }}" >> release.md
-          echo "Build time: $(date -u)" >> release.md
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ github.run_id }}
-          name: Landscape Armbian Build v${{ github.run_id }}
-          body_path: release.md
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Release Assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: release-assets/**
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Release Artifacts to GitHub
+      uses: softprops/action-gh-release@v1
+      with:
+        files: $HOME/landscape-build/output/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
