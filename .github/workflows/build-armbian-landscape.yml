@@ -52,7 +52,7 @@ jobs:
           NETWORKING_STACK=$NETWORKING_STACK
 
     - name: Package Artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: landscape-router-build
         path: $HOME/landscape-build/output/
