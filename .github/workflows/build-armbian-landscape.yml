@@ -1,65 +1,80 @@
-name: Build and Release Landscape Router (arm64)
+name: Build Armbian with Landscape (arm64)
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
-  build-landscape-router:
+  build-armbian:
     runs-on: ubuntu-latest
+    name: Compile Armbian Image with Landscape
+    env:
+      BOARD: arm64
+      RELEASE: trixie
+      BRANCH: current
+      BUILD_DESKTOP: no
+      BUILD_MINIMAL: yes
+      KERNEL_CONFIGURE: yes
+      KERNEL_GIT: shallow
+      NETWORKING_STACK: none
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
+    - name: Checkout source
+      uses: actions/checkout@v4
 
-    - name: Install Build Dependencies
+    - name: Install dependencies
       run: |
-        sudo apt update -y
-        sudo apt install -y build-essential bc u-boot-tools curl zip unzip git
+        sudo apt update
+        sudo apt install -y git curl zip unzip p7zip-full python3 python3-pip qemu-user-static binfmt-support
 
-    - name: Clone Armbian Build Tools
-      run: git clone https://github.com/ThisSeanZhang/landscape-build $HOME/landscape-build
-
-    - name: Configure Environment
+    - name: Clone Armbian build framework
       run: |
-        export BOARD=arm64
-        export BRANCH=current
-        export BUILD_DESKTOP=no
-        export BUILD_MINIMAL=yes
-        export KERNEL_CONFIGURE=yes
-        export RELEASE=bookworm
-        export KERNEL_GIT=shallow
-        export NETWORKING_STACK="none"
+        git clone --depth=1 https://github.com/armbian/build.git armbian
+        cd armbian
+        mkdir -p userpatches/overlay
+        mkdir -p userpatches
 
-    - name: Copy Configuration Files
+    - name: Add Landscape init config
       run: |
-        cp userpatches/overlay/landscape_init.toml $HOME/landscape-build/userpatches/overlay/
-        cp userpatches/customize-image.sh $HOME/landscape-build/userpatches/
+        cp ./landscape_init.toml armbian/userpatches/overlay/landscape_init.toml
 
-    - name: Execute Compile Script
+    - name: Add customize-image.sh
       run: |
-        cd $HOME/landscape-build
-        bash ./compile.sh \
-          BOARD=$BOARD \
-          BRANCH=$BRANCH \
-          BUILD_DESKTOP=$BUILD_DESKTOP \
-          BUILD_MINIMAL=$BUILD_MINIMAL \
-          KERNEL_CONFIGURE=$KERNEL_CONFIGURE \
-          RELEASE=$RELEASE \
-          KERNEL_GIT=$KERNEL_GIT \
-          NETWORKING_STACK=$NETWORKING_STACK
+        cp ./customize-image.sh armbian/userpatches/customize-image.sh
+        chmod +x armbian/userpatches/customize-image.sh
 
-    - name: Package Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: landscape-router-build
-        path: $HOME/landscape-build/output/
+    - name: Compile Armbian image
+      working-directory: armbian
+      run: |
+        ./compile.sh \
+          build \
+          BOARD=${{ env.BOARD }} \
+          BRANCH=${{ env.BRANCH }} \
+          BUILD_DESKTOP=${{ env.BUILD_DESKTOP }} \
+          BUILD_MINIMAL=${{ env.BUILD_MINIMAL }} \
+          KERNEL_CONFIGURE=${{ env.KERNEL_CONFIGURE }} \
+          RELEASE=${{ env.RELEASE }} \
+          KERNEL_GIT=${{ env.KERNEL_GIT }} \
+          NETWORKING_STACK=${{ env.NETWORKING_STACK }}
 
-    - name: Release Artifacts to GitHub
+    - name: Locate output image
+      id: locate_image
+      run: |
+        IMAGE_PATH=$(find output/images -type f -name "*.img" | head -n 1)
+        echo "IMAGE_PATH=$IMAGE_PATH" >> $GITHUB_ENV
+
+    - name: Upload image to GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        files: $HOME/landscape-build/output/*
+        files: ${{ env.IMAGE_PATH }}
+        tag_name: "auto-${{ github.run_id }}"
+        name: "Armbian Landscape Image (arm64)"
+        body: |
+          自动构建的 Armbian 镜像，集成 Landscape 初始化配置与首次启动自动设置。
+          - 架构: arm64
+          - 板卡: ${{ env.BOARD }}
+          - 发行版: ${{ env.RELEASE }}
+          - 内核分支: ${{ env.BRANCH }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
