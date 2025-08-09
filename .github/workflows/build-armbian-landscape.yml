@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Compile Armbian Image with Landscape
     env:
-      BOARD: Nanopi R2C
+      BOARD: nanopir2s
       RELEASE: trixie
       BRANCH: current
       BUILD_DESKTOP: no
