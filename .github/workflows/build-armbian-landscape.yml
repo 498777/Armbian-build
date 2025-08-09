@@ -1,4 +1,4 @@
-name: Build Armbian with Landscape (arm64)
+name: Build Armbian with Landscape 
 
 on:
   workflow_dispatch:
