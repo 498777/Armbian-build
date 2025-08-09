@@ -30,6 +30,6 @@ network_mask = 24
 
 # LAN 绑定的 MAC 地址
 mac_binding_records = [
-    { mac = "00:11:22:33:44:55", ip = "192.168.7.50" },
-    { mac = "aa:bb:cc:dd:ee:ff", ip = "192.168.7.51" },
+    { mac = "00:11:22:33:44:55", ip = "192.168.123.50" },
+    { mac = "aa:bb:cc:dd:ee:ff", ip = "192.168.123.51" },
 ]
